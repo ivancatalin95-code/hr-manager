@@ -39,6 +39,7 @@ async function cloudInit() {
   sb.auth.onAuthStateChange((_event, session) => {
     cloudUser = session?.user || null;
     updateCloudUI();
+    if (_event === 'PASSWORD_RECOVERY') showNewPassword();
   });
 }
 
@@ -56,6 +57,10 @@ function showLogin() {
   <div class="actions"><button class="primary">Conectare</button></div>
   <p class="muted">Folosește contul creat în Supabase Authentication.</p><button type="button" class="ghost" onclick="showSignup()">Creează cont</button></form>`);
 }
+function showForgot(){openModal(`<h2>🔑 Resetare parolă</h2><form onsubmit="sendReset(event)"><label>Email<input id="resetEmail" type="email" required></label><p class="muted">Vei primi un email cu un link pentru schimbarea parolei.</p><div class="actions"><button type="button" onclick="showLogin()">Înapoi</button><button class="primary">Trimite link</button></div></form>`)}
+async function sendReset(e){e.preventDefault();const {error}=await sb.auth.resetPasswordForEmail($('resetEmail').value,{redirectTo:SUPABASE_URL ? 'https://ivancatalin95-code.github.io/hr-manager/' : location.href});if(error)alert(error.message);else{alert('Ți-am trimis linkul de resetare. Verifică emailul.');closeModal();}}
+function showNewPassword(){openModal(`<h2>🔐 Setează parola nouă</h2><form onsubmit="saveNewPassword(event)"><label>Parolă nouă<input id="newPass" type="password" minlength="6" required></label><label>Repetă parola<input id="newPass2" type="password" minlength="6" required></label><div class="actions"><button class="primary">Salvează parola</button></div></form>`)}
+async function saveNewPassword(e){e.preventDefault();if($('newPass').value!==$('newPass2').value){alert('Parolele nu coincid.');return}const {error}=await sb.auth.updateUser({password:$('newPass').value});if(error)alert(error.message);else{alert('Parola a fost schimbată.');closeModal();await cloudLoad();}}
 function showSignup(){openModal(`<h2>➕ Creează cont HR Manager</h2><form onsubmit="cloudSignup(event)"><label>Email<input id="loginEmail" type="email" required></label><label>Parolă (minim 6 caractere)<input id="loginPass" type="password" minlength="6" required></label><div class="actions"><button type="button" onclick="showLogin()">Înapoi</button><button class="primary">Creează cont</button></div></form>`)}
 async function cloudSignup(e){e.preventDefault();const {error}=await sb.auth.signUp({email:$('loginEmail').value,password:$('loginPass').value});if(error)alert(error.message);else alert('Cont creat. Dacă Supabase cere confirmarea emailului, verifică inboxul și apoi conectează-te.');}
 async function cloudLogin(e) {
