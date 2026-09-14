@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#172033"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HR Manager</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Arial;background:#f5f7fb;color:#172033}
+header{background:#172033;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+header h1{margin:0;font-size:21px}.wrap{max-width:1200px;margin:auto;padding:18px}
+nav{display:flex;gap:6px;background:#fff;padding:10px 18px;border-bottom:1px solid #e5e7eb;position:sticky;top:0;z-index:3}
+button{border:0;border-radius:9px;padding:9px 13px;cursor:pointer;font-weight:650}.primary{background:#2563eb;color:white}.danger{background:#fee2e2;color:#991b1b}.ghost{background:#eef2f7}
+nav button.active{background:#eaf1ff;color:#155eef}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px}.stat{font-size:28px;font-weight:800;margin-top:5px}
+.toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:12px 0}.filters{display:flex;gap:8px;flex-wrap:wrap}
+input,select,textarea{padding:10px;border:1px solid #d0d5dd;border-radius:8px;font:inherit;width:100%}textarea{min-height:70px}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb}th,td{padding:10px;border-bottom:1px solid #eef0f3;text-align:left;font-size:13px}th{background:#f8fafc}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:750}.ok{background:#dcfce7;color:#166534}.soon{background:#fef3c7;color:#92400e}.late{background:#fee2e2;color:#991b1b}.blue{background:#e0e7ff;color:#3730a3}
+.muted{color:#667085}.section{margin-top:18px}.empty{padding:28px;text-align:center;color:#667085;border:1px dashed #cbd5e1;border-radius:12px;background:#fff}
+.modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;padding:15px;z-index:5}.modal.open{display:flex}.box{background:#fff;border-radius:16px;padding:20px;width:min(600px,100%);max-height:92vh;overflow:auto}
+form{display:grid;gap:10px}label{font-size:13px;font-weight:700}.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.file{font-size:12px}.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}.day{min-height:90px;background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:7px;font-size:11px}.day b{display:block;margin-bottom:5px}.event{margin-top:3px;padding:3px;border-radius:4px;background:#eef2ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.toast{position:fixed;right:15px;bottom:15px;background:#172033;color:#fff;padding:12px 15px;border-radius:10px;display:none;z-index:8}
+@media(max-width:800px){.grid{grid-template-columns:repeat(2,1fr)}.cal{grid-template-columns:repeat(2,1fr)}table{display:block;overflow:auto}header{gap:10px}.toolbar{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body><div id="installBar" style="display:none;position:fixed;left:12px;right:12px;bottom:12px;background:#fff;border:1px solid #d0d5dd;border-radius:12px;padding:12px;z-index:9;box-shadow:0 8px 30px #0002"><b>HR Manager</b><br><span class="muted">Poți instala aplicația pe telefon.</span> <button class="primary" onclick="installApp()">Instalează</button> <button onclick="this.parentElement.style.display='none'">Mai târziu</button></div>
+<header><h1>📋 HR Manager <small style="font-weight:400;opacity:.7">v4</small></h1><span id="date"></span></header>
+<nav><button class="active" data-tab="dashboard">Dashboard</button><button data-tab="employees">Angajați</button><button data-tab="tasks">Task-uri</button><button data-tab="calendar">Calendar</button><button data-tab="notifications">🔔 Notificări</button><button data-tab="backup">Backup</button></nav>
+<div class="wrap">
+<section id="dashboard">
+<div class="grid">
+<div class="card">👥 Angajați<div class="stat" id="nEmp">0</div></div><div class="card">🩺 Medicale urgente<div class="stat" id="nMed">0</div></div><div class="card">🦺 SSM urgente<div class="stat" id="nSsm">0</div></div><div class="card">🔴 Task-uri depășite<div class="stat" id="nLate">0</div></div>
+</div><div class="section card"><h3>⚠️ Ce necesită atenție</h3><div id="attention"></div></div>
+</section>
+
+<section id="employees" hidden>
+<div class="toolbar"><h2>Angajați</h2><div class="filters"><input id="empSearch" placeholder="Caută angajat..." oninput="renderEmp()"><button class="primary" onclick="openEmp()">+ Adaugă</button></div></div>
+<div id="empTable"></div>
+</section>
+
+<section id="tasks" hidden>
+<div class="toolbar"><h2>Task-uri</h2><div class="filters"><input id="taskSearch" placeholder="Caută task..." oninput="renderTasks()"><select id="taskFilter" onchange="renderTasks()"><option value="">Toate</option><option value="open">Deschise</option><option value="late">Depășite</option><option value="done">Finalizate</option></select><button class="primary" onclick="openTask()">+ Adaugă task</button></div></div>
+<div id="taskTable"></div>
+</section>
+
+<section id="calendar" hidden><div class="toolbar"><h2>📅 Calendar</h2><div><button onclick="changeMonth(-1)">‹</button> <b id="monthName"></b> <button onclick="changeMonth(1)">›</button></div></div><div class="cal" id="cal"></div></section>
+
+<section id="notifications" hidden>
+<div class="toolbar"><h2>🔔 Notificări</h2><button class="primary" onclick="requestNotify()">Activează notificările</button></div>
+<div class="card"><p><b>Ce primești:</b> avertizări pentru documente care expiră în 30/7 zile și task-uri care se apropie de termen sau sunt depășite.</p><div id="notifyList"></div></div>
+<div class="card section"><h3>Setări notificări</h3><label style="display:block;margin:8px 0">Cu câte zile înainte pentru documente <input id="noticeDays" type="number" min="0" max="365" value="30" onchange="saveNotice()"></label><label style="display:block;margin:8px 0"><input id="notifyOverdue" type="checkbox" checked onchange="saveNotice()" style="width:auto"> notifică și pentru elementele depășite</label></div>
+</section>
+
+<section id="backup" hidden><div class="card"><h2>💾 Backup și date</h2><p class="muted">Datele sunt salvate local în browser. Poți exporta un backup și îl poți importa ulterior.</p><button class="primary" onclick="downloadBackup()">Exportă backup</button> <label style="display:inline-block;width:auto"><input type="file" id="importFile" accept=".json" onchange="importBackup(event)" style="display:none"><button class="ghost" onclick="document.getElementById('importFile').click()">Importă backup</button></label><hr><button class="danger" onclick="clearAll()">Șterge toate datele</button></div></section>
+</div>
+
+<div class="modal" id="modal"><div class="box"><div id="host"></div></div></div><div class="toast" id="toast"></div>
+
+<script>
+const KEY='managerFirma_v2';
+let db=JSON.parse(localStorage.getItem(KEY)||'{"employees":[],"tasks":[]}');
+let calDate=new Date();
+const $=x=>document.getElementById(x);
+const save=()=>{localStorage.setItem(KEY,JSON.stringify(db));render()};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
+const days=d=>(new Date(d+'T23:59:59')-new Date())/86400000;
+function docStatus(d){let x=days(d);return x<0?['Expirat','late']:x<=30?['Expiră în '+Math.ceil(x)+' zile','soon']:['Valabil','ok']}
+function tStatus(t){if(t.done)return ['Finalizat','ok'];let x=days(t.due);return x<0?['Depășit','late']:x<=7?['În '+Math.max(0,Math.ceil(x))+' zile','soon']:['În termen','ok']}
+function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function renderNotify(){
+ const n=parseInt(localStorage.getItem('manager_notice_days')||'30'), overdue=localStorage.getItem('manager_notify_overdue')!=='0';
+ let a=[];
+ db.employees.forEach(e=>{[['🩺',e.med,'fișa medicală'],['🦺',e.ssm,'SSM']].forEach(x=>{let d=days(x[1]);if(d<=n&&(overdue||d>=0))a.push(`<div style="padding:9px 0"> ${x[0]} <b>${esc(e.name)}</b> — ${x[2]}: <span class="badge ${d<0?'late':'soon'}">${d<0?'EXPIRAT':('în '+Math.ceil(d)+' zile')}</span></div>`);})});
+ db.tasks.forEach(t=>{let d=days(t.due);if(!t.done&&((d<=7)||(overdue&&d<0)))a.push(`<div style="padding:9px 0">📌 <b>${esc(t.title)}</b> — <span class="badge ${d<0?'late':'soon'}">${d<0?'DEPĂȘIT':('în '+Math.ceil(d)+' zile')}</span></div>`)});
+ $('notifyList').innerHTML=a.length?a.join(''):'<div class="empty">Nu există notificări active.</div>';
+}
+function saveNotice(){localStorage.setItem('manager_notice_days',$('noticeDays').value);localStorage.setItem('manager_notify_overdue',$('notifyOverdue').checked?'1':'0');renderNotify()}
+async function requestNotify(){if(!('Notification' in window)){alert('Browserul nu suportă notificări.');return}let p=await Notification.requestPermission();if(p==='granted'){new Notification('Manager Firmă',{body:'Notificările sunt active.'});toast('Notificări activate')}}
+function toast(s){let t=$('toast');t.textContent=s;t.style.display='block';setTimeout(()=>t.style.display='none',2500)}
+function render(){ $('date').textContent=new Date().toLocaleDateString('ro-RO');renderDash();renderEmp();renderTasks();renderCal();if($('notifyList')){ $('noticeDays').value=localStorage.getItem('manager_notice_days')||'30'; $('notifyOverdue').checked=localStorage.getItem('manager_notify_overdue')!=='0'; renderNotify();}}
+function renderDash(){
+ let med=db.employees.filter(e=>days(e.med)<=30).length,ssm=db.employees.filter(e=>days(e.ssm)<=30).length,late=db.tasks.filter(t=>!t.done&&days(t.due)<0).length;
+ $('nEmp').textContent=db.employees.length;$('nMed').textContent=med;$('nSsm').textContent=ssm;$('nLate').textContent=late;
+ let a=[];db.employees.forEach(e=>{let m=docStatus(e.med),s=docStatus(e.ssm);if(m[1]!='ok')a.push(`🩺 <b>${esc(e.name)}</b> — medical: <span class="badge ${m[1]}">${m[0]}</span>`);if(s[1]!='ok')a.push(`🦺 <b>${esc(e.name)}</b> — SSM: <span class="badge ${s[1]}">${s[0]}</span>`)});
+ db.tasks.filter(t=>!t.done&&days(t.due)<=7).forEach(t=>a.push(`📌 <b>${esc(t.title)}</b> — <span class="badge ${tStatus(t)[1]}">${tStatus(t)[0]}</span>`));
+ $('attention').innerHTML=a.length?a.map(x=>`<div style="padding:7px 0">${x}</div>`).join(''):'<div class="empty">Totul este în regulă.</div>';
+}
+function renderEmp(){let q=($('empSearch')?.value||'').toLowerCase();let arr=db.employees.filter(e=>e.name.toLowerCase().includes(q)||e.job.toLowerCase().includes(q));$('empTable').innerHTML=arr.length?`<table><tr><th>Nume</th><th>Funcție</th><th>Medical</th><th>SSM</th><th>Documente</th><th></th></tr>${arr.map(e=>{let m=docStatus(e.med),s=docStatus(e.ssm);return `<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.job)}</td><td>${e.med}<br><span class="badge ${m[1]}">${m[0]}</span></td><td>${e.ssm}<br><span class="badge ${s[1]}">${s[0]}</span></td><td>${e.medFile?`<a href="${e.medFile}" target="_blank">Medical PDF</a>`:'-'} ${e.ssmFile?`<a href="${e.ssmFile}" target="_blank">SSM PDF</a>`:''}</td><td><button onclick="openEmp('${e.id}')">Editează</button> <button class="danger" onclick="delEmp('${e.id}')">Șterge</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nu există angajați.</div>'}
+function renderTasks(){let q=($('taskSearch')?.value||'').toLowerCase(),f=$('taskFilter')?.value||'';let arr=db.tasks.filter(t=>(t.title+' '+t.desc+' '+t.owner).toLowerCase().includes(q)).filter(t=>f==='open'?!t.done:f==='late'?!t.done&&days(t.due)<0:f==='done'?t.done:true);$('taskTable').innerHTML=arr.length?`<table><tr><th>Task</th><th>Termen</th><th>Responsabil</th><th>Status</th><th></th></tr>${arr.map(t=>{let s=tStatus(t);return `<tr><td><b>${esc(t.title)}</b><br><span class="muted">${esc(t.desc)}</span></td><td>${t.due}</td><td>${esc(t.owner)}</td><td><span class="badge ${s[1]}">${s[0]}</span></td><td>${!t.done?`<button onclick="finishTask('${t.id}')">Finalizat</button>`:''} <button onclick="openTask('${t.id}')">Editează</button> <button class="danger" onclick="delTask('${t.id}')">Șterge</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nu există task-uri.</div>'}
+function renderCal(){let y=calDate.getFullYear(),m=calDate.getMonth();$('monthName').textContent=new Date(y,m,1).toLocaleDateString('ro-RO',{month:'long',year:'numeric'});let first=new Date(y,m,1),start=(first.getDay()+6)%7,n=new Date(y,m+1,0).getDate(),out=['Lun','Mar','Mie','Joi','Vin','Sâm','Dum'].map(x=>`<div class="day"><b>${x}</b></div>`).join('');for(let i=0;i<start;i++)out+='<div class="day"></div>';for(let d=1;d<=n;d++){let ds=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`,ev=[];db.tasks.filter(t=>t.due===ds).forEach(t=>ev.push('📌 '+esc(t.title)));db.employees.forEach(e=>{if(e.med===ds)ev.push('🩺 '+esc(e.name));if(e.ssm===ds)ev.push('🦺 '+esc(e.name))});out+=`<div class="day"><b>${d}</b>${ev.map(x=>`<div class="event">${x}</div>`).join('')}</div>`}$('cal').innerHTML=out}
+function changeMonth(n){calDate.setMonth(calDate.getMonth()+n);renderCal()}
+function openModal(h){$('host').innerHTML=h;$('modal').classList.add('open')}function closeModal(){$('modal').classList.remove('open')}
+function openEmp(id=''){let e=db.employees.find(x=>x.id===id)||{name:'',job:'',med:'',ssm:'',medFile:'',ssmFile:''};openModal(`<h2>${id?'Editează':'Adaugă'} angajat</h2><form onsubmit="saveEmp(event,'${id}')"><label>Nume și prenume<input id="en" required value="${esc(e.name)}"></label><label>Funcție<input id="ej" value="${esc(e.job)}"></label><label>Data fișei medicale<input id="em" type="date" required value="${e.med}"></label><label>Data următoarei scadențe SSM<input id="es" type="date" required value="${e.ssm}"></label><label>PDF fișă medicală<input id="mf" type="file" accept="application/pdf"></label><label>PDF document SSM<input id="sf" type="file" accept="application/pdf"></label><div class="muted">Pentru prototip, PDF-urile mici sunt salvate local în browser.</div><div class="actions"><button type="button" onclick="closeModal()">Anulează</button><button class="primary">Salvează</button></div></form>`)}
+async function fileData(inp){let f=inp.files[0];return f?await new Promise((res,rej)=>{let r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)}):null}
+async function saveEmp(ev,id){ev.preventDefault();let old=db.employees.find(x=>x.id===id)||{};let mf=await fileData($('mf')),sf=await fileData($('sf'));let e={id:id||uid(),name:$('en').value,job:$('ej').value,med:$('em').value,ssm:$('es').value,medFile:mf||old.medFile||'',ssmFile:sf||old.ssmFile||''};if(id)db.employees=db.employees.map(x=>x.id===id?e:x);else db.employees.push(e);closeModal();save()}
+function delEmp(id){if(confirm('Ștergi angajatul?')){db.employees=db.employees.filter(e=>e.id!==id);save()}}
+function openTask(id=''){let t=db.tasks.find(x=>x.id===id)||{title:'',desc:'',due:'',owner:'',done:false};openModal(`<h2>${id?'Editează':'Adaugă'} task</h2><form onsubmit="saveTask(event,'${id}')"><label>Titlu<input id="tt" required value="${esc(t.title)}"></label><label>Descriere<textarea id="td">${esc(t.desc)}</textarea></label><label>Termen limită<input id="tu" type="date" required value="${t.due}"></label><label>Responsabil<input id="to" value="${esc(t.owner)}"></label><div class="actions"><button type="button" onclick="closeModal()">Anulează</button><button class="primary">Salvează</button></div></form>`)}
+function saveTask(ev,id){ev.preventDefault();let o=db.tasks.find(x=>x.id===id)||{};let t={id:id||uid(),title:$('tt').value,desc:$('td').value,due:$('tu').value,owner:$('to').value,done:o.done||false};if(id)db.tasks=db.tasks.map(x=>x.id===id?t:x);else db.tasks.push(t);closeModal();save()}
+function finishTask(id){db.tasks=db.tasks.map(t=>t.id===id?({...t,done:true}):t);save()}function delTask(id){if(confirm('Ștergi task-ul?')){db.tasks=db.tasks.filter(t=>t.id!==id);save()}}
+function downloadBackup(){let b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='backup-manager-firma.json';a.click()}
+function importBackup(ev){let f=ev.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!x.employees||!x.tasks)throw 0;db=x;save();alert('Backup importat.')}catch{alert('Fișier invalid.')}};r.readAsText(f)}
+function clearAll(){if(confirm('Sigur vrei să ștergi TOATE datele?')){db={employees:[],tasks:[]};save()}}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');['dashboard','employees','tasks','calendar','notifications','backup'].forEach(x=>$(x).hidden=x!==b.dataset.tab);render()});
+$('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};render();
+</script>
+<script>
+let deferredInstall=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;document.getElementById('installBar').style.display='block'});
+async function installApp(){if(!deferredInstall)return;deferredInstall.prompt();await deferredInstall.userChoice;deferredInstall=null;document.getElementById('installBar').style.display='none'}
+if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));
+</script></body></html>
