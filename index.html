@@ -22,9 +22,92 @@ form{display:grid;gap:10px}label{font-size:13px;font-weight:700}.actions{display
 .toast{position:fixed;right:15px;bottom:15px;background:#172033;color:#fff;padding:12px 15px;border-radius:10px;display:none;z-index:8}
 @media(max-width:800px){.grid{grid-template-columns:repeat(2,1fr)}.cal{grid-template-columns:repeat(2,1fr)}table{display:block;overflow:auto}header{gap:10px}.toolbar{align-items:flex-start;flex-direction:column}}
 </style>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://tpcjjxzplploporgobgp.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_3uQPO8VRu93-G2OO7i-OSA_o9OsCLq4';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let cloudUser = null;
+
+async function cloudInit() {
+  const {data} = await sb.auth.getUser();
+  cloudUser = data.user || null;
+  updateCloudUI();
+  if (cloudUser) await cloudLoad();
+  else showLogin();
+  sb.auth.onAuthStateChange((_event, session) => {
+    cloudUser = session?.user || null;
+    updateCloudUI();
+  });
+}
+
+function updateCloudUI() {
+  const el=document.getElementById('cloudStatus');
+  if(el) el.innerHTML = cloudUser
+    ? '☁️ Conectat: <b>'+esc(cloudUser.email||'cont firmă')+'</b> <button class="ghost" onclick="cloudLogout()">Ieșire</button>'
+    : '☁️ Neconectat';
+}
+function showLogin() {
+  openModal(`<h2>🔐 HR Manager — Conectare</h2>
+  <form onsubmit="cloudLogin(event)">
+  <label>Email<input id="loginEmail" type="email" required></label>
+  <label>Parolă<input id="loginPass" type="password" required></label>
+  <div class="actions"><button class="primary">Conectare</button></div>
+  <p class="muted">Folosește contul creat în Supabase Authentication.</p><button type="button" class="ghost" onclick="showSignup()">Creează cont</button></form>`);
+}
+function showSignup(){openModal(`<h2>➕ Creează cont HR Manager</h2><form onsubmit="cloudSignup(event)"><label>Email<input id="loginEmail" type="email" required></label><label>Parolă (minim 6 caractere)<input id="loginPass" type="password" minlength="6" required></label><div class="actions"><button type="button" onclick="showLogin()">Înapoi</button><button class="primary">Creează cont</button></div></form>`)}
+async function cloudSignup(e){e.preventDefault();const {error}=await sb.auth.signUp({email:$('loginEmail').value,password:$('loginPass').value});if(error)alert(error.message);else alert('Cont creat. Dacă Supabase cere confirmarea emailului, verifică inboxul și apoi conectează-te.');}
+async function cloudLogin(e) {
+ e.preventDefault();
+ const {error}=await sb.auth.signInWithPassword({email:$('loginEmail').value,password:$('loginPass').value});
+ if(error) alert(error.message); else {closeModal();await cloudLoad();toast('Conectat la cloud');}
+}
+async function cloudLogout() { await sb.auth.signOut(); cloudUser=null; updateCloudUI(); showLogin(); }
+async function cloudLoad() {
+ if(!cloudUser)return;
+ const [er,tr]=await Promise.all([sb.from('employees').select('*').order('created_at'),sb.from('tasks').select('*').order('created_at')]);
+ if(er.error||tr.error) { alert((er.error||tr.error).message); return; }
+ db.employees=(er.data||[]).map(e=>({
+   id:e.id,name:e.name,job:e.job||'',phone:e.phone||'',email:e.email||'',
+   hire_date:e.hire_date||'',med:e.medical_date||'',ssm:e.ssm_date||'',
+   medFile:e.medical_file_url||'',ssmFile:e.ssm_file_url||''
+ }));
+ db.tasks=(tr.data||[]).map(t=>({
+   id:t.id,title:t.title,desc:t.description||'',due:t.due_date,
+   owner:t.owner||'',done:t.status==='done'
+ }));
+ localStorage.setItem(KEY,JSON.stringify(db));render();
+}
+async function cloudSaveEmployee(e) {
+ if(!cloudUser)return;
+ const row={id:e.id,name:e.name,job:e.job,phone:e.phone||null,email:e.email||null,
+ hire_date:e.hire_date||null,medical_date:e.med||null,ssm_date:e.ssm||null,
+ medical_file_url:e.medFile||null,ssm_file_url:e.ssmFile||null,active:true};
+ const {error}=await sb.from('employees').upsert(row);
+ if(error){console.error('employees sync',error);alert('Nu s-a putut salva în cloud: '+error.message);}
+}
+async function cloudDeleteEmployee(id) {
+ if(!cloudUser)return;
+ const {error}=await sb.from('employees').delete().eq('id',id);
+ if(error)alert(error.message);
+}
+async function cloudSaveTask(t) {
+ if(!cloudUser)return;
+ const row={id:t.id,title:t.title,description:t.desc||null,due_date:t.due,owner:t.owner||null,
+ status:t.done?'done':'open',completed_at:t.done?new Date().toISOString():null};
+ const {error}=await sb.from('tasks').upsert(row);
+ if(error){console.error('tasks sync',error);alert('Nu s-a putut salva în cloud: '+error.message);}
+}
+async function cloudDeleteTask(id) {
+ if(!cloudUser)return;
+ const {error}=await sb.from('tasks').delete().eq('id',id);
+ if(error)alert(error.message);
+}
+</script>
 </head>
 <body><div id="installBar" style="display:none;position:fixed;left:12px;right:12px;bottom:12px;background:#fff;border:1px solid #d0d5dd;border-radius:12px;padding:12px;z-index:9;box-shadow:0 8px 30px #0002"><b>HR Manager</b><br><span class="muted">Poți instala aplicația pe telefon.</span> <button class="primary" onclick="installApp()">Instalează</button> <button onclick="this.parentElement.style.display='none'">Mai târziu</button></div>
-<header><h1>📋 HR Manager <small style="font-weight:400;opacity:.7">v4</small></h1><span id="date"></span></header>
+<header><h1>📋 HR Manager <small style="font-weight:400;opacity:.7">v4</small></h1><span id="cloudStatus">☁️ Neconectat</span><span id="date"></span></header>
 <nav><button class="active" data-tab="dashboard">Dashboard</button><button data-tab="employees">Angajați</button><button data-tab="tasks">Task-uri</button><button data-tab="calendar">Calendar</button><button data-tab="notifications">🔔 Notificări</button><button data-tab="backup">Backup</button></nav>
 <div class="wrap">
 <section id="dashboard">
@@ -62,7 +145,7 @@ let db=JSON.parse(localStorage.getItem(KEY)||'{"employees":[],"tasks":[]}');
 let calDate=new Date();
 const $=x=>document.getElementById(x);
 const save=()=>{localStorage.setItem(KEY,JSON.stringify(db));render()};
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
+const uid=()=>crypto.randomUUID();
 const days=d=>(new Date(d+'T23:59:59')-new Date())/86400000;
 function docStatus(d){let x=days(d);return x<0?['Expirat','late']:x<=30?['Expiră în '+Math.ceil(x)+' zile','soon']:['Valabil','ok']}
 function tStatus(t){if(t.done)return ['Finalizat','ok'];let x=days(t.due);return x<0?['Depășit','late']:x<=7?['În '+Math.max(0,Math.ceil(x))+' zile','soon']:['În termen','ok']}
@@ -92,16 +175,16 @@ function changeMonth(n){calDate.setMonth(calDate.getMonth()+n);renderCal()}
 function openModal(h){$('host').innerHTML=h;$('modal').classList.add('open')}function closeModal(){$('modal').classList.remove('open')}
 function openEmp(id=''){let e=db.employees.find(x=>x.id===id)||{name:'',job:'',med:'',ssm:'',medFile:'',ssmFile:''};openModal(`<h2>${id?'Editează':'Adaugă'} angajat</h2><form onsubmit="saveEmp(event,'${id}')"><label>Nume și prenume<input id="en" required value="${esc(e.name)}"></label><label>Funcție<input id="ej" value="${esc(e.job)}"></label><label>Data fișei medicale<input id="em" type="date" required value="${e.med}"></label><label>Data următoarei scadențe SSM<input id="es" type="date" required value="${e.ssm}"></label><label>PDF fișă medicală<input id="mf" type="file" accept="application/pdf"></label><label>PDF document SSM<input id="sf" type="file" accept="application/pdf"></label><div class="muted">Pentru prototip, PDF-urile mici sunt salvate local în browser.</div><div class="actions"><button type="button" onclick="closeModal()">Anulează</button><button class="primary">Salvează</button></div></form>`)}
 async function fileData(inp){let f=inp.files[0];return f?await new Promise((res,rej)=>{let r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)}):null}
-async function saveEmp(ev,id){ev.preventDefault();let old=db.employees.find(x=>x.id===id)||{};let mf=await fileData($('mf')),sf=await fileData($('sf'));let e={id:id||uid(),name:$('en').value,job:$('ej').value,med:$('em').value,ssm:$('es').value,medFile:mf||old.medFile||'',ssmFile:sf||old.ssmFile||''};if(id)db.employees=db.employees.map(x=>x.id===id?e:x);else db.employees.push(e);closeModal();save()}
-function delEmp(id){if(confirm('Ștergi angajatul?')){db.employees=db.employees.filter(e=>e.id!==id);save()}}
+async function saveEmp(ev,id){ev.preventDefault();let old=db.employees.find(x=>x.id===id)||{};let mf=await fileData($('mf')),sf=await fileData($('sf'));let e={id:id||uid(),name:$('en').value,job:$('ej').value,med:$('em').value,ssm:$('es').value,medFile:mf||old.medFile||'',ssmFile:sf||old.ssmFile||''};if(id)db.employees=db.employees.map(x=>x.id===id?e:x);else db.employees.push(e);closeModal();save();cloudSaveEmployee(e)}
+function delEmp(id){if(confirm('Ștergi angajatul?')){db.employees=db.employees.filter(e=>e.id!==id);save();cloudDeleteEmployee(id)}}
 function openTask(id=''){let t=db.tasks.find(x=>x.id===id)||{title:'',desc:'',due:'',owner:'',done:false};openModal(`<h2>${id?'Editează':'Adaugă'} task</h2><form onsubmit="saveTask(event,'${id}')"><label>Titlu<input id="tt" required value="${esc(t.title)}"></label><label>Descriere<textarea id="td">${esc(t.desc)}</textarea></label><label>Termen limită<input id="tu" type="date" required value="${t.due}"></label><label>Responsabil<input id="to" value="${esc(t.owner)}"></label><div class="actions"><button type="button" onclick="closeModal()">Anulează</button><button class="primary">Salvează</button></div></form>`)}
-function saveTask(ev,id){ev.preventDefault();let o=db.tasks.find(x=>x.id===id)||{};let t={id:id||uid(),title:$('tt').value,desc:$('td').value,due:$('tu').value,owner:$('to').value,done:o.done||false};if(id)db.tasks=db.tasks.map(x=>x.id===id?t:x);else db.tasks.push(t);closeModal();save()}
-function finishTask(id){db.tasks=db.tasks.map(t=>t.id===id?({...t,done:true}):t);save()}function delTask(id){if(confirm('Ștergi task-ul?')){db.tasks=db.tasks.filter(t=>t.id!==id);save()}}
+function saveTask(ev,id){ev.preventDefault();let o=db.tasks.find(x=>x.id===id)||{};let t={id:id||uid(),title:$('tt').value,desc:$('td').value,due:$('tu').value,owner:$('to').value,done:o.done||false};if(id)db.tasks=db.tasks.map(x=>x.id===id?t:x);else db.tasks.push(t);closeModal();save();cloudSaveTask(t)}
+function finishTask(id){let t=db.tasks.find(x=>x.id===id);db.tasks=db.tasks.map(t=>t.id===id?({...t,done:true}):t);save();if(t)cloudSaveTask({...t,done:true})}function delTask(id){if(confirm('Ștergi task-ul?')){db.tasks=db.tasks.filter(t=>t.id!==id);save();cloudDeleteTask(id)}}
 function downloadBackup(){let b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='backup-manager-firma.json';a.click()}
 function importBackup(ev){let f=ev.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!x.employees||!x.tasks)throw 0;db=x;save();alert('Backup importat.')}catch{alert('Fișier invalid.')}};r.readAsText(f)}
 function clearAll(){if(confirm('Sigur vrei să ștergi TOATE datele?')){db={employees:[],tasks:[]};save()}}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');['dashboard','employees','tasks','calendar','notifications','backup'].forEach(x=>$(x).hidden=x!==b.dataset.tab);render()});
-$('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};render();
+$('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};render(); cloudInit();
 </script>
 <script>
 let deferredInstall=null;
